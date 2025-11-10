@@ -30,14 +30,14 @@ interface Scenario {
   amount: number;
   category: string;
   time: string;
+  carbonData: CarbonData;
 }
 
 interface Transaction extends Scenario {
-  carbonData: CarbonData;
   exceeded?: boolean;
 }
 
-// Carbon Calculator Logic
+// Carbon Calculator Logic (kept for reference, but using static values)
 const EMISSION_FACTORS: Record<string, EmissionFactor> = {
   food_delivery: {
     base: 0.6,
@@ -71,97 +71,99 @@ const EMISSION_FACTORS: Record<string, EmissionFactor> = {
   },
 };
 
-const CARBON_CREDIT_PRICE_PER_KG = 0.1; // ₹0.10 per kg CO₂
-
-function calculateCarbonFootprint(
-  amount: number,
-  category: string = "general"
-): CarbonData {
-  const factor = EMISSION_FACTORS[category] || EMISSION_FACTORS.restaurant;
-
-  // Step 1: Calculate total carbon generated
-  const carbonKg = (amount / 100) * factor.base + factor.fixed;
-
-  // Step 2: Round-off details
-  const roundedAmount = Math.ceil(amount);
-  const roundOffAmount = parseFloat((roundedAmount - amount).toFixed(2));
-
-  // Step 3: Convert ₹ round-off into carbon offset potential
-  const carbonOffsetPossible = roundOffAmount / CARBON_CREDIT_PRICE_PER_KG;
-
-  // Step 4: Limit percentage to 100%
-  const offsetPercentage = Math.min(
-    (carbonOffsetPossible / carbonKg) * 100,
-    100
-  );
-
-  // ✅ Step 5: Don’t let tiny values round down to 0 — show at least 0.01 kg
-  const formattedOffset =
-    carbonOffsetPossible < 0.01
-      ? 0.01
-      : parseFloat(carbonOffsetPossible.toFixed(2));
-
-  // ✅ Step 6: Compute net carbon properly
-  const netCarbon = Math.max(
-    parseFloat((carbonKg - formattedOffset).toFixed(2)),
-    0
-  );
-
-  return {
-    category: factor.label,
-    icon: factor.icon,
-    amount: parseFloat(amount.toFixed(2)),
-    carbonGenerated: parseFloat(carbonKg.toFixed(2)),
-    roundOffAmount,
-    carbonOffset: formattedOffset,
-    offsetPercentage: parseFloat(offsetPercentage.toFixed(1)),
-    netCarbon,
-  };
-}
-
-// Transaction scenarios
+// Transaction scenarios with FIXED pre-calculated carbon data
 const SCENARIOS: Scenario[] = [
   {
     id: 1,
     name: "Morning Coffee",
-    amount: 150,
+    amount: 149,
     category: "restaurant",
     time: "10:00 AM",
+    carbonData: {
+      category: "Restaurant/Café",
+      icon: "☕",
+      amount: 149,
+      carbonGenerated: 0.8,
+      roundOffAmount: 1,
+      carbonOffset: 2.5,
+      offsetPercentage: 2,
+      netCarbon: 0,
+    },
   },
   {
     id: 2,
     name: "Lunch Delivery",
-    amount: 320,
+    amount: 319,
     category: "food_delivery",
     time: "2:00 PM",
+    carbonData: {
+      category: "Food Delivery",
+      icon: "🍔",
+      amount: 319,
+      carbonGenerated: 3.71,
+      roundOffAmount: 1,
+      carbonOffset: 3,
+      offsetPercentage: 3,
+      netCarbon: 0,
+    },
   },
   {
     id: 3,
     name: "Grocery Shopping",
-    amount: 450,
+    amount: 449,
     category: "grocery",
     time: "5:00 PM",
+    carbonData: {
+      category: "Grocery Store",
+      icon: "🛒",
+      amount: 449,
+      carbonGenerated: 1.85,
+      roundOffAmount: 1,
+      carbonOffset: 1,
+      offsetPercentage: 2.5,
+      netCarbon: 0,
+    },
   },
   {
     id: 4,
     name: "Online Shopping",
-    amount: 680,
+    amount: 679,
     category: "ecommerce",
     time: "7:00 PM",
+    carbonData: {
+      category: "Online Shopping",
+      icon: "📦",
+      amount: 679,
+      carbonGenerated: 7.93,
+      roundOffAmount: 1,
+      carbonOffset: 1.2,
+      offsetPercentage: 4,
+      netCarbon: 0,
+    },
   },
   {
     id: 5,
     name: "Uber Ride",
-    amount: 180,
+    amount: 179,
     category: "ride_sharing",
     time: "9:00 PM",
+    carbonData: {
+      category: "Uber/Ola/Taxi",
+      icon: "🚗",
+      amount: 179,
+      carbonGenerated: 1.47,
+      roundOffAmount: 1,
+      carbonOffset: 6.5,
+      offsetPercentage: 5,
+      netCarbon: 0,
+    },
   },
 ];
 
 export function HeroSection() {
   const [showSimulator, setShowSimulator] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [budget, setBudget] = useState<number>(1000);
+  const [budget] = useState<number>(1000);
   const [spent, setSpent] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showCarbonModal, setShowCarbonModal] = useState<boolean>(false);
@@ -172,33 +174,29 @@ export function HeroSection() {
 
   const resetSimulator = (): void => {
     setCurrentStep(0);
-    setBudget(1000);
     setSpent(0);
     setTransactions([]);
     setShowCarbonModal(false);
     setShowGuiltModal(false);
     setCurrentTransaction(null);
+    setStreak(12);
   };
 
   const handleTransaction = (scenario: Scenario): void => {
     const remaining = budget - spent;
-    const carbonData = calculateCarbonFootprint(
-      scenario.amount,
-      scenario.category
-    );
 
     if (scenario.amount > remaining) {
       // Budget exceeded - show guilt modal
-      setCurrentTransaction({ ...scenario, carbonData, exceeded: true });
+      setCurrentTransaction({ ...scenario, exceeded: true });
       setShowGuiltModal(true);
     } else {
       // Show carbon impact
-      setCurrentTransaction({ ...scenario, carbonData, exceeded: false });
+      setCurrentTransaction({ ...scenario, exceeded: false });
       setShowCarbonModal(true);
 
       setTimeout(() => {
         setSpent(spent + scenario.amount);
-        setTransactions([...transactions, { ...scenario, carbonData }]);
+        setTransactions([...transactions, scenario]);
         setShowCarbonModal(false);
         setCurrentStep(currentStep + 1);
       }, 3000);
@@ -217,6 +215,10 @@ export function HeroSection() {
   );
   const totalOffset = transactions.reduce(
     (sum, tx) => sum + tx.carbonData.carbonOffset,
+    0
+  );
+  const totalRoundOff = transactions.reduce(
+    (sum, tx) => sum + tx.carbonData.roundOffAmount,
     0
   );
   const offsetPercentage =
@@ -359,14 +361,14 @@ export function HeroSection() {
                       index < currentStep
                         ? "bg-gray-100 opacity-50 cursor-not-allowed"
                         : index === currentStep
-                        ? "bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 hover:shadow-lg"
+                        ? "bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 hover:shadow-lg cursor-pointer"
                         : "bg-gray-50 opacity-30 cursor-not-allowed"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <span className="text-3xl">
-                          {EMISSION_FACTORS[scenario.category]?.icon}
+                          {scenario.carbonData.icon}
                         </span>
                         <div>
                           <p className="font-semibold text-gray-900">
@@ -398,7 +400,7 @@ export function HeroSection() {
                   <h4 className="text-lg font-semibold text-gray-900 mb-4">
                     Daily Summary
                   </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <p className="text-sm text-gray-600">Total Carbon</p>
                       <p className="text-xl font-bold text-purple-600">
@@ -406,15 +408,21 @@ export function HeroSection() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Offset</p>
+                      <p className="text-sm text-gray-600">Total Offset</p>
+                      <p className="text-xl font-bold text-green-600">
+                        {totalOffset.toFixed(2)} kg
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Offset %</p>
                       <p className="text-xl font-bold text-green-600">
                         {offsetPercentage}%
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600">Net Impact</p>
+                      <p className="text-sm text-gray-600">Round-off</p>
                       <p className="text-xl font-bold text-blue-600">
-                        {(totalCarbon - totalOffset).toFixed(2)} kg
+                        ₹{totalRoundOff}
                       </p>
                     </div>
                   </div>
@@ -436,6 +444,9 @@ export function HeroSection() {
                       your carbon!
                     </p>
                     <p className="mt-2">Streak: {streak} days 🔥</p>
+                    <p className="mt-2 text-sm">
+                      Total Round-off Collected: ₹{totalRoundOff}
+                    </p>
                   </motion.div>
                 </div>
               )}
